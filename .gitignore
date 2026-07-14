@@ -1,0 +1,43 @@
+__pycache__/
+*.pyc
+
+.env
+
+.vscode/
+
+.chroma/
+
+chroma/
+
+venv/
+
+.venv/
+
+.env/
+
+*.db
+
+*.sqlite3
+
+.ipynb_checkpoints/
+
+*.log# Python
+__pycache__/
+*.pyc
+
+# Environment variables
+.env
+
+# VS Code
+.vscode/
+
+# Chroma vector database
+chroma_db/
+
+# Conda
+.env/
+venv/
+.venv/
+
+# Logs
+*.log
