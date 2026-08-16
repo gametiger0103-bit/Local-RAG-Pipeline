@@ -35,7 +35,7 @@ def chunk_documents(documents, chunk_size=500, chunk_overlap=50):
 def build_vector_store(chunks, persist_directory="chroma_db"):
     """Embeds chunks and stores them in ChromaDB."""
     print("Building vector store...")
-    embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    embedding_model = embedding_model = HuggingFaceEmbeddings(model_name="BAAI/bge-small-en-v1.5")
     vector_store = Chroma.from_documents(
         documents=chunks,
         embedding=embedding_model,
@@ -47,7 +47,7 @@ def build_vector_store(chunks, persist_directory="chroma_db"):
 def load_vector_store(persist_directory="chroma_db"):
     """Loads existing vector store from disk."""
     print("Loading existing vector store...")
-    embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    embedding_model = embedding_model = HuggingFaceEmbeddings(model_name="BAAI/bge-small-en-v1.5")
     vector_store = Chroma(
         persist_directory=persist_directory,
         embedding_function=embedding_model
@@ -66,7 +66,7 @@ def build_rag_chain(vector_store):
 
     prompt = PromptTemplate.from_template("""
 You are a helpful assistant. Use the following context to answer the question.
-If you don't know the answer from the context, say "I don't have enough information."
+Only answer using the context above. If the context does not contain the answer, respond with exactly: "I don't have enough information to answer that." Do not guess.
 
 Context:
 {context}
@@ -93,6 +93,10 @@ def ask(chain, question: str):
     print(f"Answer: {answer}")
     return answer
 
+import os
+import time
+# ... your other imports up here ...
+
 if __name__ == "__main__":
     db_path = "chroma_db"
 
@@ -103,11 +107,9 @@ if __name__ == "__main__":
     else:
         vector_store = load_vector_store(db_path)
 
-import time
+    chain = build_rag_chain(vector_store)
 
-chain = build_rag_chain(vector_store)
+    ask(chain, "What is this document about?")
+    time.sleep(3)  # Give Ollama a moment to reset between calls
 
-ask(chain, "What is this document about?")
-time.sleep(3)  # Give Ollama a moment to reset between calls
-
-ask(chain, "What are the main findings?")
+    ask(chain, "What are the main findings?")
