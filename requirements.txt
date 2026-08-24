@@ -1,0 +1,33 @@
+# Configuration and utilities
+pydantic
+ollama
+tqdm
+
+# Core LangChain ecosystem
+langchain
+langchain-community
+langchain-core
+langchain-text-splitters
+langchain-huggingface
+langchain-chroma
+langchain-ollama
+
+# Additional model providers
+langchain-openai
+langchain-anthropic
+langchain-google-genai
+
+# Embeddings / local models
+sentence-transformers
+transformers
+huggingface-hub
+torch
+
+# Vector store
+chromadb
+
+# PDF loading
+pypdf
+
+# Benchmark evaluation
+datasets

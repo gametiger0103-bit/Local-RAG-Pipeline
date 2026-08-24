@@ -41,3 +41,16 @@ venv/
 
 # Logs
 *.log
+
+# Benchmark outputs
+results/
+benchmark_chroma_db/
+benchmark_results*.csv
+
+# Temporary / backup files
+environment.yml.original
+TODO.md
+
+# Local document store (keep sample docs in repo if needed, but ignore local uploads)
+documents/
+Documents/
