@@ -76,8 +76,9 @@ if __name__ == "__main__":
     vector_store = build_benchmark_store(unique_contexts)
 
     chain = build_rag_chain(vector_store)
+    retriever = vector_store.as_retriever(search_kwargs={"k": 5})
 
-     results = []
+    results = []
     for i, item in enumerate(sample):
         question = item["question"]
         ground_truths = item["answers"]["text"]  # empty list = unanswerable

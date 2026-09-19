@@ -1,0 +1,21 @@
+question,correct_answer,predicted_answer,raw_response,is_correct
+"Of the following ionic substances, which has the greatest lattice enthalpy?",A,A,A.,True
+Which of the following statements most accurately explains why the 1H spectrum of 12CHCl3 is a singlet?,D,A,A,False
+Which one of the following statements is true:,C,A,A,False
+Which one of the following statements is true:,C,A,A,False
+Which of the following statements is not a reason why tetramethylsilane is used as a 1H chemical shift reference.,D,D,D,True
+The strongest base in liquid ammonia is,B,A,A,False
+"What is the orbital angular momentum quantum number, l, of the electron that is most easily removed when ground-state aluminum is ionized?",C,D,D,False
+A single line is seen in the 31P spectrum of a solution of sodium phosphate. The 31P chemical shifts of H2PO4‾ and HPO42– are 3.42 ppm and 5.82 ppm respectively. What is the chemical shift when the pH of the solution equals the pKa of H2PO4‾?,D,D,D,True
+Nitronyl nitroxides are stable radicals in which the unpaired electron is coupled to two equivalent nitrogen nuclei. How many lines will appear in the EPR spectrum of a solution of a rigid nitronyl nitroxide diradical with J >> a?,D,D,D,True
+The fact that the infrared absorption frequency of deuterium chloride (DCl) is shifted from that of hydrogen chloride (HCl) is due to the differences in their,D,D,D,True
+What is the maximum number of phases that can be at equilibrium with each other in a three component mixture?,D,A,A.,False
+Which nuclide has an NMR frequency of 115.5 MHz in a 20.0 T magnetic field?,A,D,D,False
+Which of the following is the most common naturally-occurring form in which silicon is found?,D,D,D,True
+"A silyl radical bearing an Si-H· fragment has a g value of 2.0033 and a pair of lines separated by 15.5 MHz. Express the splitting in units of mT, Gauss and cm-1.",B,A,A.,False
+An electron and a proton are placed in a 1.0 T magnetic field at 300 K. What is the ratio of the equilibrium polarizations: |pe / pH| ?,B,A,A. 329,False
+"Of the following compounds, which is LEAST likely to behave as a Lewis acid?",D,A,A.,False
+"Considering 0.1 M aqueous solutions of each of the following, which solution has the lowest pH?",D,A,A. D,False
+Calculate the equilibrium polarization of 13C nuclei in a 20.0 T magnetic field at 300 K.,D,A,A. 10.8 x 10^-5,False
+The equation ΔH = ΔU + PΔV is applicable,B,A,"A, B, C, D",False
+What is the NMR frequency of 31P in a 20.0 T magnetic field?,C,A,A. 54.91 MHz,False
