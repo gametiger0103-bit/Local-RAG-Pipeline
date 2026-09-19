@@ -1,17 +1,23 @@
 # ============================================================
 # RAG PIPELINE - main.py
-# Local RAG pipeline using Ollama (no API key needed)
+# Local RAG pipeline configurable via config.py.
+# Supports multiple LLM providers (Ollama, OpenAI, Anthropic, Google).
 # ============================================================
 
 import os
-from langchain_community.document_loaders import PyPDFLoader, DirectoryLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_chroma import Chroma
-from langchain_ollama import ChatOllama
+import time
+
+from langchain_community.document_loaders import DirectoryLoader, PyPDFLoader
 from langchain_core.prompts import PromptTemplate
-from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
+from langchain_chroma import Chroma
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+from config import CONFIG, ChunkingConfig, EmbeddingConfig, RetrievalConfig
+from model_utils import create_llm
+
 
 def load_documents(directory: str):
     """Loads all PDF files from the specified directory."""
@@ -21,48 +27,81 @@ def load_documents(directory: str):
     print(f"Loaded {len(documents)} pages")
     return documents
 
-def chunk_documents(documents, chunk_size=500, chunk_overlap=50):
+
+def chunk_documents(documents, chunking_config: ChunkingConfig | None = None):
     """Splits documents into smaller overlapping chunks."""
+    if chunking_config is None:
+        chunking_config = CONFIG.chunking
+
     print("Chunking documents...")
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap
+        chunk_size=chunking_config.chunk_size,
+        chunk_overlap=chunking_config.chunk_overlap,
     )
     chunks = splitter.split_documents(documents)
     print(f"Created {len(chunks)} chunks")
     return chunks
 
-def build_vector_store(chunks, persist_directory="chroma_db"):
+
+def build_vector_store(
+    chunks,
+    persist_directory: str = "chroma_db",
+    embedding_config: EmbeddingConfig | None = None,
+):
     """Embeds chunks and stores them in ChromaDB."""
+    if embedding_config is None:
+        embedding_config = CONFIG.embedding
+
     print("Building vector store...")
-    embedding_model = embedding_model = HuggingFaceEmbeddings(model_name="BAAI/bge-small-en-v1.5")
+    embedding_model = HuggingFaceEmbeddings(model_name=embedding_config.model_name)
     vector_store = Chroma.from_documents(
         documents=chunks,
         embedding=embedding_model,
-        persist_directory=persist_directory
+        persist_directory=persist_directory,
     )
     print(f"Vector store saved to: {persist_directory}")
     return vector_store
 
-def load_vector_store(persist_directory="chroma_db"):
+
+def load_vector_store(
+    persist_directory: str = "chroma_db",
+    embedding_config: EmbeddingConfig | None = None,
+):
     """Loads existing vector store from disk."""
+    if embedding_config is None:
+        embedding_config = CONFIG.embedding
+
     print("Loading existing vector store...")
-    embedding_model = embedding_model = HuggingFaceEmbeddings(model_name="BAAI/bge-small-en-v1.5")
+    embedding_model = HuggingFaceEmbeddings(model_name=embedding_config.model_name)
     vector_store = Chroma(
         persist_directory=persist_directory,
-        embedding_function=embedding_model
+        embedding_function=embedding_model,
     )
     return vector_store
 
-def build_rag_chain(vector_store):
-    """Builds the RAG chain connecting retriever to local Ollama LLM."""
-    print("Building RAG chain...")
 
-    # Local LLM via Ollama - no API key needed
-    llm = ChatOllama(
-        model="llama3.2:1b",
-        temperature=0
-    )
+def build_rag_chain(
+    vector_store,
+    llm,
+    retrieval_config: RetrievalConfig | None = None,
+    output_parser=StrOutputParser(),
+):
+    """Builds the RAG chain connecting retriever to the provided LLM.
+
+    Args:
+        vector_store: The Chroma vector store to retrieve from.
+        llm: The LangChain chat model to use for generation.
+        retrieval_config: Retriever configuration. Defaults to CONFIG.retrieval.
+        output_parser: Optional output parser. Pass ``None`` to receive the raw
+            ``AIMessage`` (useful for capturing thinking/reasoning content).
+
+    Returns:
+        The assembled LCEL chain.
+    """
+    if retrieval_config is None:
+        retrieval_config = CONFIG.retrieval
+
+    print("Building RAG chain...")
 
     prompt = PromptTemplate.from_template("""
 You are a helpful assistant. Use the following context to answer the question.
@@ -75,16 +114,19 @@ Question: {question}
 
 Answer:""")
 
-    retriever = vector_store.as_retriever(search_kwargs={"k": 5})
+    retriever = vector_store.as_retriever(search_kwargs={"k": retrieval_config.k})
 
     rag_chain = (
         {"context": retriever, "question": RunnablePassthrough()}
         | prompt
         | llm
-        | StrOutputParser()
     )
 
+    if output_parser is not None:
+        rag_chain = rag_chain | output_parser
+
     return rag_chain
+
 
 def ask(chain, question: str):
     """Runs a question through the RAG chain and prints the answer."""
@@ -93,12 +135,12 @@ def ask(chain, question: str):
     print(f"Answer: {answer}")
     return answer
 
-import os
-import time
-# ... your other imports up here ...
 
 if __name__ == "__main__":
     db_path = "chroma_db"
+
+    # Instantiate the configured LLM (will auto-pull Ollama models if needed).
+    llm = create_llm(CONFIG.model)
 
     if not os.path.exists(db_path):
         documents = load_documents("documents")
@@ -107,7 +149,7 @@ if __name__ == "__main__":
     else:
         vector_store = load_vector_store(db_path)
 
-    chain = build_rag_chain(vector_store)
+    chain = build_rag_chain(vector_store, llm)
 
     ask(chain, "What is this document about?")
     time.sleep(3)  # Give Ollama a moment to reset between calls
