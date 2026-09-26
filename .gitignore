@@ -51,6 +51,5 @@ benchmark_results*.csv
 environment.yml.original
 TODO.md
 
-# Local document store (keep sample docs in repo if needed, but ignore local uploads)
-documents/
-Documents/
+# macOS
+.DS_Store

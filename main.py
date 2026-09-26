@@ -4,8 +4,12 @@
 # Supports multiple LLM providers (Ollama, OpenAI, Anthropic, Google).
 # ============================================================
 
+import hashlib
 import os
-import time
+import re
+import shutil
+import sys
+from pathlib import Path
 
 from langchain_community.document_loaders import DirectoryLoader, PyPDFLoader
 from langchain_core.prompts import PromptTemplate
@@ -15,15 +19,58 @@ from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from config import CONFIG, ChunkingConfig, EmbeddingConfig, RetrievalConfig
+from config import (
+    CONFIG,
+    ChunkingConfig,
+    DocumentsConfig,
+    EmbeddingConfig,
+    RetrievalConfig,
+)
 from model_utils import create_llm
 
 
-def load_documents(directory: str):
-    """Loads all PDF files from the specified directory."""
-    print(f"Loading documents from: {directory}")
-    loader = DirectoryLoader(directory, glob="**/*.pdf", loader_cls=PyPDFLoader)
+def store_path_for(
+    documents_config: DocumentsConfig | None = None,
+    embedding_config: EmbeddingConfig | None = None,
+):
+    """Maps a document source to its own vector store directory.
+
+    The directory name hashes the absolute source path and the embedding
+    model, so same-named files in different folders stay separate and
+    switching embedding models never reuses an incompatible index.
+    """
+    if documents_config is None:
+        documents_config = CONFIG.documents
+    if embedding_config is None:
+        embedding_config = CONFIG.embedding
+
+    path = Path(documents_config.source).resolve()
+    slug = re.sub(r"[^a-zA-Z0-9]+", "-", path.stem).strip("-").lower() or "docs"
+    key = f"{path}|{embedding_config.model_name}"
+    digest = hashlib.sha1(key.encode()).hexdigest()[:8]
+    return os.path.join(documents_config.persist_root, f"{slug}-{digest}")
+
+
+def load_documents(source: str):
+    """Loads a single PDF file, or all PDFs in a directory."""
+    path = Path(source)
+
+    if not path.exists():
+        sys.exit(f"Error: no such file or folder: {source}")
+
+    if path.is_file():
+        if path.suffix.lower() != ".pdf":
+            sys.exit(f"Error: not a PDF file: {source}")
+        print(f"Loading document: {path}")
+        loader = PyPDFLoader(str(path))
+    else:
+        print(f"Loading documents from: {path}")
+        loader = DirectoryLoader(str(path), glob="**/*.pdf", loader_cls=PyPDFLoader)
+
     documents = loader.load()
+    if not documents:
+        sys.exit(f"Error: no PDF content found in: {source}")
+
     print(f"Loaded {len(documents)} pages")
     return documents
 
@@ -136,22 +183,47 @@ def ask(chain, question: str):
     return answer
 
 
+def chat_loop(chain):
+    """Prompts for questions until the user exits."""
+    print("\nAsk a question about the document. Type 'exit' to quit.\n")
+
+    while True:
+        try:
+            question = input("Question: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            break
+
+        if not question:
+            continue
+        if question.lower() in {"exit", "quit"}:
+            break
+
+        try:
+            answer = chain.invoke(question)
+        except Exception as e:
+            print(f"Error: {e}\n")
+            continue
+
+        print(f"\nAnswer: {answer}\n")
+
+
 if __name__ == "__main__":
-    db_path = "chroma_db"
+    db_path = store_path_for()
 
     # Instantiate the configured LLM (will auto-pull Ollama models if needed).
     llm = create_llm(CONFIG.model)
 
-    if not os.path.exists(db_path):
-        documents = load_documents("documents")
+    if CONFIG.documents.rebuild and os.path.exists(db_path):
+        print(f"Rebuilding index at: {db_path}")
+        shutil.rmtree(db_path)
+
+    if os.path.exists(db_path):
+        vector_store = load_vector_store(db_path)
+    else:
+        documents = load_documents(CONFIG.documents.source)
         chunks = chunk_documents(documents)
         vector_store = build_vector_store(chunks, db_path)
-    else:
-        vector_store = load_vector_store(db_path)
 
     chain = build_rag_chain(vector_store, llm)
-
-    ask(chain, "What is this document about?")
-    time.sleep(3)  # Give Ollama a moment to reset between calls
-
-    ask(chain, "What are the main findings?")
+    chat_loop(chain)

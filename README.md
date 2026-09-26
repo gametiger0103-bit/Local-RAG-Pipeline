@@ -6,13 +6,13 @@ A configurable, local-first Retrieval-Augmented Generation (RAG) pipeline. Ask q
 
 This project builds a RAG pipeline that:
 
-- Loads PDF documents from a folder.
+- Loads a single PDF or every PDF in a folder.
 - Splits them into overlapping chunks.
 - Generates embeddings and stores vectors in ChromaDB.
 - Retrieves relevant context for a question.
 - Uses an LLM to generate an answer based only on the retrieved context.
 
-It also includes a benchmark runner that evaluates the pipeline on SQuAD v2, measuring answer accuracy, hallucination rate, and generation performance (tokens/second).
+It also includes a benchmark runner that evaluates the pipeline on SQuAD v2 and MMLU-Chem, measuring answer accuracy, hallucination rate, and generation performance (tokens/second).
 
 ## Features
 
@@ -23,7 +23,7 @@ It also includes a benchmark runner that evaluates the pipeline on SQuAD v2, mea
 - **Thinking-model support** — captures reasoning/thinking content separately from the final answer.
 - **Ollama auto-pull** — missing Ollama models are pulled automatically with a progress bar.
 - **Config-driven** — all settings live in `config.py`.
-- **Benchmarking** — evaluate on SQuAD v2 with exact-match, contains-answer, and hallucination metrics.
+- **Benchmarking** — evaluate on SQuAD v2 (exact-match, contains-answer, hallucination) and MMLU-Chem (multiple-choice accuracy, with or without RAG).
 - **Performance metrics** — per-question latency, output tokens, and tokens/second.
 - **Verbosity levels** — quiet progress bar or per-question Q/A output.
 - **Organized results** — benchmark outputs saved under `results/<benchmark>/<model>/<timestamp>/` as CSV + JSON summary.
@@ -44,11 +44,11 @@ It also includes a benchmark runner that evaluates the pipeline on SQuAD v2, mea
 ├── config.py              # Centralized configuration (model, chunking, retrieval, benchmarks)
 ├── model_utils.py         # LLM factory, Ollama auto-pull, thinking-content extraction
 ├── main.py                # Run the RAG pipeline on your documents
-├── benchmark_eval.py      # Run SQuAD v2 benchmarks
+├── benchmark_eval.py      # Run SQuAD v2 / MMLU-Chem benchmarks
 ├── environment.yml        # Mamba/Conda environment definition
 ├── requirements.txt       # Pip requirements (works with uv pip)
-├── documents/             # Put your PDFs here
-├── chroma_db/             # Local vector store (created on first run)
+├── Documents/             # Your PDFs (committed)
+├── chroma_db/             # One vector store per source (created on first run)
 └── results/               # Benchmark outputs (created on benchmark runs)
 ```
 
@@ -81,7 +81,7 @@ pip install -r requirements.txt
 
 ## Configuration
 
-All tunable settings are in `config.py`.
+All tunable settings are in `config.py`. Edit the `CONFIG = Config(...)` block at the bottom of the file: values set there override the defaults in the config classes above it.
 
 ### Default model (Ollama)
 
@@ -163,11 +163,23 @@ model=ModelConfig(
 
 The benchmark runner will save both the reasoning content and the final answer in the results CSV and JSON summary.
 
+### Documents
+
+```python
+documents=DocumentsConfig(
+    source="Documents",                   # a folder of PDFs...
+    # source="Documents/mesh_splatting.pdf",  # ...or a single PDF
+    rebuild=False,                        # True = discard the cached index and re-embed
+),
+```
+
+Each source gets its own index under `chroma_db/<name>-<hash>`, where the hash covers the source's absolute path and the embedding model. Switching documents or embedding models therefore never reuses a stale index. Set `rebuild=True` after editing a PDF in place.
+
 ### Benchmark settings
 
 ```python
 benchmarks=BenchmarksConfig(
-    enabled=["squad_v2"],
+    enabled=["squad_v2", "mmlu_chem"],
     verbosity=0,  # 0 = progress bar, 1 = show each Q/A
     squad_v2=SquadV2Config(
         dataset_name="rajpurkar/squad_v2",
@@ -175,14 +187,30 @@ benchmarks=BenchmarksConfig(
         num_questions=30,
         seed=42,
     ),
+    mmlu_chem=MmluChemConfig(
+        subject="college_chemistry",
+        num_questions=20,
+        seed=42,
+        use_rag=False,  # True = answer with context retrieved from knowledge_source
+        knowledge_source=None,  # e.g. "Documents/chemistry" (required when use_rag=True)
+    ),
 )
 ```
+
+`enabled` lists the benchmarks to run (options: `squad_v2`, `mmlu_chem`); remove one to skip it.
+
+**MMLU-Chem** asks multiple-choice chemistry questions from `cais/mmlu` and scores accuracy (random guessing = 25%).
+
+- `use_rag=False` (default) measures what the model already knows.
+- `use_rag=True` retrieves `k` chunks from every PDF in the `knowledge_source` folder for each question. The folder is indexed once and cached under `chroma_db/`; set `rebuild_index=True` after changing its contents.
+
+Run it both ways to see how much your knowledge base helps.
 
 ## Usage
 
 ### Run the RAG pipeline
 
-1. Put your PDFs in `documents/`.
+1. Put your PDFs in `Documents/` and set `CONFIG.documents.source`.
 2. Run:
 
 ```bash
@@ -190,7 +218,13 @@ mamba activate rag_pipeline
 python main.py
 ```
 
-The first run builds the vector store in `chroma_db/`. Subsequent runs reuse it.
+The first run embeds the source and caches the index; later runs on the same source start immediately. You then get an interactive prompt:
+
+```text
+Ask a question about the document. Type 'exit' to quit.
+
+Question: What are the main findings?
+```
 
 ### Run benchmarks
 
@@ -205,7 +239,7 @@ python benchmark_eval.py --verbose
 Benchmark outputs are saved under:
 
 ```text
-results/squad_v2/<sanitized_model_name>/<timestamp>/
+results/<benchmark>/<sanitized_model_name>/<timestamp>/
 ├── results.csv      # one row per question
 └── summary.json     # aggregated metrics + full config snapshot
 ```
@@ -222,9 +256,9 @@ The JSON summary includes:
 
 ## Notes
 
-- The first run downloads the embedding model and (for benchmarks) the SQuAD v2 dataset from Hugging Face.
+- The first run downloads the embedding model and (for benchmarks) the SQuAD v2 / MMLU datasets from Hugging Face.
 - Ollama must be running if you use an Ollama model. The script will pull missing models automatically when `auto_pull=True`.
-- The `results/`, `chroma_db/`, and `documents/` directories are ignored by Git.
+- The `results/` and `chroma_db/` directories are ignored by Git. `Documents/` is committed.
 
 ## License / attribution
 
